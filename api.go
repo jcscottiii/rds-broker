@@ -21,9 +21,8 @@ import (
 //   "organization_guid": "org-guid-here",
 //   "space_guid":        "space-guid-here"
 // }
-func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *gorm.DB, s *Settings) {
+func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *gorm.DB, sharedPool *RdsSharedDBPool, s *Settings) {
 	instance := Instance{}
-
 	db.Where("uuid = ?", p["id"]).First(&instance)
 
 	if instance.Id > 0 {
@@ -92,7 +91,7 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 //   "service_id":     "service-guid-here",
 //   "app_guid":       "app-guid-here"
 // }
-func BindInstance(p martini.Params, r render.Render, db *gorm.DB, s *Settings) {
+func BindInstance(p martini.Params, r render.Render, db *gorm.DB, sharedPool *RdsSharedDBPool, s *Settings) {
 	instance := Instance{}
 
 	db.Where("uuid = ?", p["instance_id"]).First(&instance)
@@ -106,18 +105,22 @@ func BindInstance(p martini.Params, r render.Render, db *gorm.DB, s *Settings) {
 		r.JSON(http.StatusInternalServerError, "")
 	}
 
+	rdsDbConnection, err := sharedPool.FindConnectionByPlanId("plan_id")
+	if err != nil {
+		r.JSON(http.StatusInternalServerError, "Unable to find the registered database")
+	}
 	uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		instance.Username,
 		password,
-		s.Rds.Url,
-		s.Rds.Port,
+		rdsDbConnection.Rds.Url,
+		rdsDbConnection.Rds.Port,
 		instance.Database)
 
 	credentials := map[string]string{
 		"uri":      uri,
 		"username": instance.Username,
 		"password": password,
-		"host":     s.Rds.Url,
+		"host":     rdsDbConnection.Rds.Url,
 		"db_name":  instance.Database,
 	}
 
@@ -134,7 +137,7 @@ func BindInstance(p martini.Params, r render.Render, db *gorm.DB, s *Settings) {
 //   "service_id": "service-id-here"
 //   "plan_id":    "plan-id-here"
 // }
-func DeleteInstance(p martini.Params, r render.Render, db *gorm.DB) {
+func DeleteInstance(p martini.Params, r render.Render, db *gorm.DB, sharedPool *RdsSharedDBPool) {
 	instance := Instance{}
 
 	db.Where("uuid = ?", p["id"]).First(&instance)

@@ -7,6 +7,7 @@ import (
 
 	"errors"
 	"fmt"
+	"log"
 )
 
 type RDS struct {
@@ -26,6 +27,47 @@ const (
 	InstanceInProgress				// 1
 	InstanceReady					// 2
 )
+
+type RdsDbConnection struct {
+	Rds	*RDS
+	Conn	*gorm.DB
+}
+
+type RdsSharedDBPool struct {
+	Pool	map[string]RdsDbConnection
+}
+
+func (p *RdsSharedDBPool) InitializePoolFromPlans(plans []Plan, env string) error {
+	for _, plan := range plans {
+		if plan.Adapter == "shared" {
+			// Check if plan exists in pool already.
+			if _, exists := p.Pool[plan.Id]; exists {
+				// Log this.
+				log.Println("Unable to initialize plan id (" + plan.Id + ") of plan name (" + plan.Name + "). Already exists.")
+				// Maybe error?
+			} else {
+				// Generate RDS for plan.
+				Rds := LoadRDSFromPlan(&plan)
+				// Initialize DB connection.
+				Conn, err := DBInit(Rds)
+				if err != nil {
+					log.Println("Cannot initialize connection to database for plan: " + plan.Name)
+					return err
+				}
+				rdsDbConnection := RdsDbConnection{Rds: Rds, Conn: Conn}
+				p.Pool[plan.Id] = rdsDbConnection
+			}
+		}
+	}
+	return nil
+}
+
+func (p *RdsSharedDBPool) FindConnectionByPlanId(id string) (*RdsDbConnection, error) {
+	if rdsDbConnection, exists := p.Pool[id]; exists {
+		return &rdsDbConnection, nil
+	}
+	return nil, errors.New("Unable to find shared rds connection with plan id: " + id)
+}
 
 // Main function to create database instances
 // Selects an adapter and depending on the plan

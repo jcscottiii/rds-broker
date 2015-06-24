@@ -5,9 +5,11 @@ applications:
   env:
     AUTH_USER: user
     AUTH_PASS: pass
-    DB_URL: 10.244.0.30
-    DB_NAME: rdsbroker
-    DB_USER: rds
-    DB_PASS: rds
-    DB_PORT: 5524
+    SHARED-PSQL_DB_URL: 10.244.0.30
+    SHARED-PSQL_DB_NAME: rdsbroker
+    SHARED-PSQL_DB_USER: rds
+    SHARED-PSQL_DB_PASS: rds
+    SHARED-PSQL_DB_PORT: 5524
+    SHARED-PSQL_DB_TYPE: postgres
+    BROKER_DB_PLAN_ID: 44d24fc7-f7a4-4ac1-b7a0-de82836e89a3
     ENC_KEY: "12345678901234567890123456789012"

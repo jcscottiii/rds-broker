@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/go-martini/martini"
+	"github.com/jinzhu/gorm"
 
 	"bytes"
 	"encoding/json"
@@ -20,24 +21,34 @@ var createInstanceReq []byte = []byte(`{
 	"space_guid":"a-space"
 }`)
 
-func setup() *martini.ClassicMartini {
+func setup(DB *gorm.DB, sharedPool *RdsSharedDBPool) *martini.ClassicMartini {
 	os.Setenv("AUTH_USER", "default")
 	os.Setenv("AUTH_PASS", "default")
 	var s Settings
-	var r RDS
-	s.Rds = &r
-	r.DbType = "sqlite3"
-	r.DbName = ":memory:"
 	s.EncryptionKey = "12345678901234567890123456789012"
 
-	m := App(&s, "test")
+	m := App(&s, "test", DB, sharedPool)
 
 	return m
 }
 
-func doRequest(m *martini.ClassicMartini, url string, method string, auth bool, body io.Reader) (*httptest.ResponseRecorder, *martini.ClassicMartini) {
+func setupDB() (*gorm.DB, *RdsSharedDBPool) {
+	var r RDS
+	r.DbType = "sqlite3"
+	r.DbName = ":memory:"
+	conn, _ := DBInit(&r)
+	rdsDbConnection := RdsDbConnection{}
+	rdsDbConnection.Conn = conn
+	rdsDbConnection.Rds = &r
+	// sharedPool := &RdsSharedDBPool{}
+	sharedPool := &RdsSharedDBPool{Pool: make(map[string]RdsDbConnection)}
+	sharedPool.Pool["44d24fc7-f7a4-4ac1-b7a0-de82836e89a3"] = rdsDbConnection
+	return conn, sharedPool
+}
+
+func doRequest(m *martini.ClassicMartini, url string, method string, auth bool, body io.Reader, DB *gorm.DB, Pool *RdsSharedDBPool) (*httptest.ResponseRecorder, *martini.ClassicMartini) {
 	if m == nil {
-		m = setup()
+		m = setup(DB, Pool)
 	}
 
 	res := httptest.NewRecorder()
@@ -59,15 +70,16 @@ func validJson(response []byte, url string, t *testing.T) {
 }
 
 func TestCatalog(t *testing.T) {
+	DB, Pool := setupDB()
 	url := "/v2/catalog"
-	res, _ := doRequest(nil, url, "GET", false, nil)
+	res, _ := doRequest(nil, url, "GET", false, nil, DB, Pool)
 
 	// Without auth
 	if res.Code != http.StatusUnauthorized {
 		t.Error(url, "without auth should return 401")
 	}
 
-	res, _ = doRequest(nil, url, "GET", true, nil)
+	res, _ = doRequest(nil, url, "GET", true, nil, DB, Pool)
 
 	// With auth
 	if res.Code != http.StatusOK {
@@ -79,9 +91,10 @@ func TestCatalog(t *testing.T) {
 }
 
 func TestCreateInstance(t *testing.T) {
+	DB, Pool := setupDB()
 	url := "/v2/service_instances/the_instance"
 
-	res, _ := doRequest(nil, url, "PUT", true, bytes.NewBuffer(createInstanceReq))
+	res, _ := doRequest(nil, url, "PUT", true, bytes.NewBuffer(createInstanceReq), DB, Pool)
 
 	if res.Code != http.StatusCreated {
 		t.Logf("Unable to create instance. Body is: " + res.Body.String())
@@ -113,8 +126,9 @@ func TestCreateInstance(t *testing.T) {
 }
 
 func TestBindInstance(t *testing.T) {
+	DB, Pool := setupDB()
 	url := "/v2/service_instances/the_instance/service_bindings/the_binding"
-	res, m := doRequest(nil, url, "PUT", true, bytes.NewBuffer(createInstanceReq))
+	res, m := doRequest(nil, url, "PUT", true, bytes.NewBuffer(createInstanceReq), DB, Pool)
 
 	// Without the instance
 	if res.Code != http.StatusNotFound {
@@ -122,9 +136,9 @@ func TestBindInstance(t *testing.T) {
 	}
 
 	// Create the instance and try again
-	doRequest(m, "/v2/service_instances/the_instance", "PUT", true, bytes.NewBuffer(createInstanceReq))
+	doRequest(m, "/v2/service_instances/the_instance", "PUT", true, bytes.NewBuffer(createInstanceReq), DB, Pool)
 
-	res, _ = doRequest(m, url, "PUT", true, nil)
+	res, _ = doRequest(m, url, "PUT", true, nil, DB, Pool)
 	if res.Code != http.StatusCreated {
 		t.Logf("Unable to create instance. Body is: " + res.Body.String())
 		t.Error(url, "with auth should return 201 and it returned", res.Code)
@@ -164,8 +178,9 @@ func TestBindInstance(t *testing.T) {
 }
 
 func TestUnbind(t *testing.T) {
+	DB, Pool := setupDB()
 	url := "/v2/service_instances/the_instance/service_bindings/the_binding"
-	res, _ := doRequest(nil, url, "DELETE", true, nil)
+	res, _ := doRequest(nil, url, "DELETE", true, nil, DB, Pool)
 
 	if res.Code != http.StatusOK {
 		t.Error(url, "with auth should return 200 and it returned", res.Code)
@@ -181,8 +196,9 @@ func TestUnbind(t *testing.T) {
 }
 
 func TestDeleteInstance(t *testing.T) {
+	DB, Pool := setupDB()
 	url := "/v2/service_instances/the_instance"
-	res, m := doRequest(nil, url, "DELETE", true, nil)
+	res, m := doRequest(nil, url, "DELETE", true, nil, DB, Pool)
 
 	// With no instance
 	if res.Code != http.StatusNotFound {
@@ -190,14 +206,14 @@ func TestDeleteInstance(t *testing.T) {
 	}
 
 	// Create the instance and try again
-	doRequest(m, "/v2/service_instances/the_instance", "PUT", true, bytes.NewBuffer(createInstanceReq))
+	doRequest(m, "/v2/service_instances/the_instance", "PUT", true, bytes.NewBuffer(createInstanceReq), DB, Pool)
 	i := Instance{}
 	DB.Where("uuid = ?", "the_instance").First(&i)
 	if i.Id == 0 {
 		t.Error("The instance should be in the DB")
 	}
 
-	res, _ = doRequest(m, url, "DELETE", true, nil)
+	res, _ = doRequest(m, url, "DELETE", true, nil, DB, Pool)
 
 	if res.Code != http.StatusOK {
 		t.Logf("Unable to create instance. Body is: " + res.Body.String())

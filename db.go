@@ -5,8 +5,9 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
-	"log"
 	"errors"
+	"fmt"
+	"log"
 )
 
 // Connection string parameters for Postgres - http://godoc.org/github.com/lib/pq, if you are using another
@@ -24,33 +25,42 @@ import (
 //    * require - Always SSL (skip verification)
 //    * verify-full - Always SSL (require verification)
 
-var DB gorm.DB
-
-func DBInit(rds *RDS) error {
+// This is to connect to Shared DB Instances.
+// TODO Rename method name.
+func DBInit(rds *RDS) (*gorm.DB, error) {
 	var err error
+	var DB gorm.DB
 	switch rds.DbType {
 	case "postgres":
-		DB, err = gorm.Open("postgres", "user=gorm dbname=gorm sslmode=disable")
+		conn := "dbname=%s user=%s password=%s host=%s sslmode=%s port=%s"
+		conn = fmt.Sprintf(conn,
+			rds.DbName,
+			rds.Username,
+			rds.Password,
+			rds.Url,
+			rds.Sslmode,
+			rds.Port)
+		DB, err = gorm.Open("postgres", conn)
 	case "sqlite3":
 		DB, err = gorm.Open("sqlite3", rds.DbName)
 	default:
 		errorString := "Cannot connect. Unsupported DB type: (" + rds.DbType + ")"
 		log.Println(errorString)
-		return errors.New(errorString)
+		return nil, errors.New(errorString)
 	}
 	if err != nil {
 		log.Println("Error!")
-		return err
+		return nil, err
 	}
 
 	if err = DB.DB().Ping(); err != nil {
 		log.Println("Unable to verify connection to database")
-		return err
+		return nil, err
 	}
 	DB.DB().SetMaxOpenConns(10)
 	log.Println("Migrating")
 	// Automigrate!
 	DB.AutoMigrate(Instance{})
 	log.Println("Migrated")
-	return nil
+	return &DB, nil
 }
