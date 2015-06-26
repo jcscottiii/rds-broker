@@ -13,8 +13,9 @@ import (
 )
 
 type Settings struct {
-	EncryptionKey string
-	InstanceTags  map[string]string
+	EncryptionKey			string
+	InstanceTags			map[string]string
+	DBAdapterFactoryInstance	IDBAdapterFactory
 }
 
 // Loads the RDS object based on the environment variables on a per-plan basis.
@@ -44,15 +45,21 @@ func LoadRDSFromPlan(plan *Plan) *RDS {
 }
 
 func main() {
+	// Add settings.
 	var settings Settings
 	log.Println("Loading settings")
+	// Set the environment string.
 	var env string = "prod"
 
+	// Get the encryption key.
 	settings.EncryptionKey = os.Getenv("ENC_KEY")
 	if settings.EncryptionKey == "" {
 		log.Println("An encryption key is required")
 		return
 	}
+
+	// Set the type of DB Adapter Factory.
+	settings.DBAdapterFactoryInstance = DBAdapterFactory{}
 
 	log.Println("Loading app...")
 	tags := os.Getenv("INSTANCE_TAGS")

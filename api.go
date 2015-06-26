@@ -38,10 +38,14 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 		return
 	}
 
-	body, _ := ioutil.ReadAll(req.Body)
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		r.JSON(http.StatusBadRequest, Response{"Unable to read request body."})
+		return
+	}
 
 	json.Unmarshal(body, &sr)
-	instance.PlanId = sr.PlainId
+	instance.PlanId = sr.PlanId
 	instance.OrgGuid = sr.OrganizationGuid
 	instance.SpaceGuid = sr.SpaceGuid
 
@@ -65,7 +69,7 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 	}
 
 	// Create the database instance
-	status, err := CreateDB(plan, &instance, db, password)
+	status, err := s.DBAdapterFactoryInstance.CreateDB(plan, &instance, db, password)
 	if err != nil {
 		desc := "There was an error creating the instance. Error: " + err.Error()
 		r.JSON(http.StatusInternalServerError, Response{desc})
@@ -91,7 +95,25 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 //   "service_id":     "service-guid-here",
 //   "app_guid":       "app-guid-here"
 // }
-func BindInstance(p martini.Params, r render.Render, db *gorm.DB, sharedPool *RdsSharedDBPool, s *Settings) {
+func BindInstance(p martini.Params, req *http.Request, r render.Render, db *gorm.DB, sharedPool *RdsSharedDBPool, s *Settings) {
+	if req.Body == nil {
+		r.JSON(http.StatusBadRequest, Response{"No request"})
+		return
+	}
+
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		r.JSON(http.StatusBadRequest, Response{"Unable to read request body."})
+		return
+	}
+
+	var br bindReq
+	json.Unmarshal(body, &br)
+	if br.PlanId == "" {
+		r.JSON(404, Response{"Invalid request. Missing 'plan_id' in body."})
+		return
+	}
+
 	instance := Instance{}
 
 	db.Where("uuid = ?", p["instance_id"]).First(&instance)
@@ -105,9 +127,10 @@ func BindInstance(p martini.Params, r render.Render, db *gorm.DB, sharedPool *Rd
 		r.JSON(http.StatusInternalServerError, "")
 	}
 
-	rdsDbConnection, err := sharedPool.FindConnectionByPlanId("plan_id")
+	rdsDbConnection, err := sharedPool.FindConnectionByPlanId(br.PlanId)
 	if err != nil {
 		r.JSON(http.StatusInternalServerError, "Unable to find the registered database")
+		return
 	}
 	uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		instance.Username,

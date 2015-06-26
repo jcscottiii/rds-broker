@@ -42,9 +42,11 @@ func (p *RdsSharedDBPool) InitializePoolFromPlans(plans []Plan, env string) erro
 		if plan.Adapter == "shared" {
 			// Check if plan exists in pool already.
 			if _, exists := p.Pool[plan.Id]; exists {
+				// Create the error.
+				err := errors.New("Unable to initialize plan id (" + plan.Id + ") of plan name (" + plan.Name + "). Already exists.")
 				// Log this.
-				log.Println("Unable to initialize plan id (" + plan.Id + ") of plan name (" + plan.Name + "). Already exists.")
-				// Maybe error?
+				log.Println(err.Error())
+				return err
 			} else {
 				// Generate RDS for plan.
 				Rds := LoadRDSFromPlan(&plan)
@@ -69,6 +71,13 @@ func (p *RdsSharedDBPool) FindConnectionByPlanId(id string) (*RdsDbConnection, e
 	return nil, errors.New("Unable to find shared rds connection with plan id: " + id)
 }
 
+type IDBAdapterFactory interface {
+	CreateDB(plan *Plan, i *Instance, db *gorm.DB, password string) (DBInstanceState, error)
+}
+
+type DBAdapterFactory struct {
+}
+
 // Main function to create database instances
 // Selects an adapter and depending on the plan
 // creates the instance
@@ -77,7 +86,7 @@ func (p *RdsSharedDBPool) FindConnectionByPlanId(id string) (*RdsDbConnection, e
 // 0 = not created
 // 1 = in progress
 // 2 = ready
-func CreateDB(plan *Plan,
+func (f DBAdapterFactory) CreateDB(plan *Plan,
 	i *Instance,
 	db *gorm.DB,
 	password string) (DBInstanceState, error) {

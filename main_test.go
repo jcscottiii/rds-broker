@@ -6,6 +6,7 @@ import (
 
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,66 @@ import (
 	"testing"
 )
 
+type MockDBAdapterFactory struct {
+}
+// Main function to create database instances
+// Selects an adapter and depending on the plan
+// creates the instance
+// Returns status and error
+// Status codes:
+// 0 = not created
+// 1 = in progress
+// 2 = ready
+func (f MockDBAdapterFactory) CreateDB(plan *Plan,
+	i *Instance,
+	db *gorm.DB,
+	password string) (DBInstanceState, error) {
+
+	var adapter DBAdapter
+	switch plan.Adapter {
+	case "shared":
+		adapter = &MockSharedDB{
+			Db: db,
+		}
+	case "dedicated":
+		adapter = &MockDedicatedDB{
+			InstanceType: plan.InstanceType,
+		}
+	default:
+		return InstanceNotCreated, errors.New("Adapter not found")
+	}
+
+	status, err := adapter.CreateDB(i, password)
+	return status, err
+}
+
+type MockSharedDB struct {
+	Db *gorm.DB
+}
+
+func (d *MockSharedDB) CreateDB(i *Instance, password string) (DBInstanceState, error) {
+	/*
+	if db := d.Db.Exec(fmt.Sprintf("CREATE DATABASE %s;", i.Database)); db.Error != nil {
+		return InstanceNotCreated, db.Error
+	}
+	if db := d.Db.Exec(fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s';", i.Username, password)); db.Error != nil {
+		return InstanceNotCreated, db.Error
+	}
+	if db := d.Db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON DATABASE %s TO %s", i.Database, i.Username)); db.Error != nil {
+		return InstanceNotCreated, db.Error
+	}
+	*/
+	return InstanceReady, nil
+}
+
+type MockDedicatedDB struct {
+	InstanceType string
+}
+
+func (d *MockDedicatedDB) CreateDB(i *Instance, password string) (DBInstanceState, error) {
+	return InstanceReady, nil
+}
+
 var createInstanceReq []byte = []byte(`{
 	"service_id":"the-service",
 	"plan_id":"44d24fc7-f7a4-4ac1-b7a0-de82836e89a3",
@@ -21,10 +82,17 @@ var createInstanceReq []byte = []byte(`{
 	"space_guid":"a-space"
 }`)
 
+var bindInstanceReq []byte = []byte(`{
+	"service_id":"the-service",
+	"plan_id":"44d24fc7-f7a4-4ac1-b7a0-de82836e89a3",
+	"app_guid":"an-app"
+}`)
+
 func setup(DB *gorm.DB, sharedPool *RdsSharedDBPool) *martini.ClassicMartini {
 	os.Setenv("AUTH_USER", "default")
 	os.Setenv("AUTH_PASS", "default")
 	var s Settings
+	s.DBAdapterFactoryInstance = MockDBAdapterFactory{}
 	s.EncryptionKey = "12345678901234567890123456789012"
 
 	m := App(&s, "test", DB, sharedPool)
@@ -40,7 +108,6 @@ func setupDB() (*gorm.DB, *RdsSharedDBPool) {
 	rdsDbConnection := RdsDbConnection{}
 	rdsDbConnection.Conn = conn
 	rdsDbConnection.Rds = &r
-	// sharedPool := &RdsSharedDBPool{}
 	sharedPool := &RdsSharedDBPool{Pool: make(map[string]RdsDbConnection)}
 	sharedPool.Pool["44d24fc7-f7a4-4ac1-b7a0-de82836e89a3"] = rdsDbConnection
 	return conn, sharedPool
@@ -126,9 +193,10 @@ func TestCreateInstance(t *testing.T) {
 }
 
 func TestBindInstance(t *testing.T) {
+	validJson(bindInstanceReq, "jamesurl", t)
 	DB, Pool := setupDB()
 	url := "/v2/service_instances/the_instance/service_bindings/the_binding"
-	res, m := doRequest(nil, url, "PUT", true, bytes.NewBuffer(createInstanceReq), DB, Pool)
+	res, m := doRequest(nil, url, "PUT", true, bytes.NewBuffer(bindInstanceReq), DB, Pool)
 
 	// Without the instance
 	if res.Code != http.StatusNotFound {
@@ -138,7 +206,7 @@ func TestBindInstance(t *testing.T) {
 	// Create the instance and try again
 	doRequest(m, "/v2/service_instances/the_instance", "PUT", true, bytes.NewBuffer(createInstanceReq), DB, Pool)
 
-	res, _ = doRequest(m, url, "PUT", true, nil, DB, Pool)
+	res, _ = doRequest(m, url, "PUT", true, bytes.NewBuffer(bindInstanceReq), DB, Pool)
 	if res.Code != http.StatusCreated {
 		t.Logf("Unable to create instance. Body is: " + res.Body.String())
 		t.Error(url, "with auth should return 201 and it returned", res.Code)
