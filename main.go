@@ -19,16 +19,19 @@ type Settings struct {
 }
 
 // Loads the RDS object based on the environment variables on a per-plan basis.
-// This method will look at <PLAN-NAME>_DB_<VAR>
+// This method will look at <PLAN_NAME>_DB_<VAR>
 // Example:
 // Plan Name: shared-psql
 // Example env variables:
-// SHARED-PSQL_DB_TYPE, SHARED-PSQL_DB_URL, SHARED-PSQL_DB_USER, SHARED-PSQL_DB_PASS, SHARED-PSQL_DB_NAME
+// SHARED_PSQL_DB_TYPE, SHARED_PSQL_DB_URL, SHARED_PSQL_DB_USER, SHARED_PSQL_DB_PASS, SHARED_PSQL_DB_NAME
 func LoadRDSFromPlan(plan *Plan) *RDS {
 	if plan == nil {
 		return nil
 	}
+	// Make the plan name all capitalized.
 	planNameUpper := strings.ToUpper(plan.Name)
+	// Make the plan name compliant with Linux env variable naming (no '-' allowed).
+	planNameUpper = strings.Replace(planNameUpper, "-", "_", -1)
 	rds := RDS{}
 	rds.DbType = os.Getenv(planNameUpper + "_DB_TYPE")
 	rds.Url = os.Getenv(planNameUpper + "_DB_URL")
