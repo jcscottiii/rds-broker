@@ -23,7 +23,7 @@ type serviceReq struct {
 }
 
 type bindReq struct {
-	ServiceId        string `json:"service_id"`
-	PlanId           string `json:"plan_id"`
-	AppGuid          string `json:"app_guid"`
+	ServiceId string `json:"service_id"`
+	PlanId    string `json:"plan_id"`
+	AppGuid   string `json:"app_guid"`
 }

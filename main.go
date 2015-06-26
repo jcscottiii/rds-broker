@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/go-martini/martini"
+	"github.com/jinzhu/gorm"
 	"github.com/martini-contrib/auth"
 	"github.com/martini-contrib/render"
-	"github.com/jinzhu/gorm"
 
 	"encoding/json"
 	"log"
@@ -13,9 +13,9 @@ import (
 )
 
 type Settings struct {
-	EncryptionKey			string
-	InstanceTags			map[string]string
-	DBAdapterFactoryInstance	IDBAdapterFactory
+	EncryptionKey            string
+	InstanceTags             map[string]string
+	DBAdapterFactoryInstance IDBAdapterFactory
 }
 
 // Loads the RDS object based on the environment variables on a per-plan basis.
@@ -30,14 +30,14 @@ func LoadRDSFromPlan(plan *Plan) *RDS {
 	}
 	planNameUpper := strings.ToUpper(plan.Name)
 	rds := RDS{}
-	rds.DbType = os.Getenv(planNameUpper+"_DB_TYPE")
-	rds.Url = os.Getenv(planNameUpper +"_DB_URL")
-	rds.Username = os.Getenv(planNameUpper+"_DB_USER")
-	rds.Password = os.Getenv(planNameUpper+"_DB_PASS")
-	rds.DbName = os.Getenv(planNameUpper+"_DB_NAME")
+	rds.DbType = os.Getenv(planNameUpper + "_DB_TYPE")
+	rds.Url = os.Getenv(planNameUpper + "_DB_URL")
+	rds.Username = os.Getenv(planNameUpper + "_DB_USER")
+	rds.Password = os.Getenv(planNameUpper + "_DB_PASS")
+	rds.DbName = os.Getenv(planNameUpper + "_DB_NAME")
 	rds.Sslmode = "verify-ca"
 
-	if rds.Port = os.Getenv(planNameUpper +"_DB_PORT"); rds.Port == "" {
+	if rds.Port = os.Getenv(planNameUpper + "_DB_PORT"); rds.Port == "" {
 		rds.Port = "5432"
 	}
 
@@ -89,7 +89,6 @@ func main() {
 		log.Println("Unable to setup application. Exiting...")
 	}
 }
-
 
 func App(settings *Settings, env string, DB *gorm.DB, rdsSharedDBPool *RdsSharedDBPool) *martini.ClassicMartini {
 	m := martini.Classic()

@@ -1,5 +1,6 @@
 package main
 
+// Metadata represents any additional information about the plan or service.
 type Metadata struct {
 	DisplayName         string `json:"displayName"`
 	ImageUrl            string `json:"imageUrl"`
@@ -8,15 +9,21 @@ type Metadata struct {
 	DocumentationUrl    string `json:"documentationUrl"`
 	SupportUrl          string `json:"supportUrl"`
 }
+
+// PlanCost represents the the price amount and price unit for a particular plan.
 type PlanCost struct {
 	Amount map[string]float64 `json:"amount"`
 	Unit   string             `json:"unit"`
 }
+
+// PlanMetadata represents any additional information about the plan.
 type PlanMetadata struct {
 	Bullets     []string   `json:"bullets"`
 	Costs       []PlanCost `json:"costs"`
 	DisplayName string     `json:"displayName"`
 }
+
+// Plan represents the the overall structure of what a plan includes.
 type Plan struct {
 	Id           string       `json:"id"`
 	Name         string       `json:"name"`
@@ -27,6 +34,7 @@ type Plan struct {
 	InstanceType string       `json:"-"`
 }
 
+// Service represents any data about the service itself or its included plans.
 type Service struct {
 	Id          string   `json:"id"`
 	Name        string   `json:"name"`
@@ -37,6 +45,7 @@ type Service struct {
 	Plans       []Plan   `json:"plans"`
 }
 
+// BuildCatalog is a getter function that returns data about the service broker itself.
 func BuildCatalog() []Service {
 
 	service := Service{
@@ -55,6 +64,8 @@ func BuildCatalog() []Service {
 	return []Service{service}
 }
 
+// GetPlans is a getter function that returns a slice of all current plans.
+// To add more plans, add on to the list inside.
 func GetPlans() []Plan {
 	sharedPlan := Plan{
 		Id:          "44d24fc7-f7a4-4ac1-b7a0-de82836e89a3",
@@ -121,6 +132,9 @@ func GetPlans() []Plan {
 	return []Plan{sharedPlan, microPlan, mediumPlan}
 }
 
+// FindPlan finds and returns a plan based on a given plan id.
+// It will return the first plan with the given id.
+// If no plan is found, nil is returned.
 func FindPlan(id string) *Plan {
 	for _, p := range GetPlans() {
 		if p.Id == id {

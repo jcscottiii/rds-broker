@@ -17,6 +17,7 @@ import (
 
 type MockDBAdapterFactory struct {
 }
+
 // Main function to create database instances
 // Selects an adapter and depending on the plan
 // creates the instance
@@ -54,15 +55,15 @@ type MockSharedDB struct {
 
 func (d *MockSharedDB) CreateDB(i *Instance, password string) (DBInstanceState, error) {
 	/*
-	if db := d.Db.Exec(fmt.Sprintf("CREATE DATABASE %s;", i.Database)); db.Error != nil {
-		return InstanceNotCreated, db.Error
-	}
-	if db := d.Db.Exec(fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s';", i.Username, password)); db.Error != nil {
-		return InstanceNotCreated, db.Error
-	}
-	if db := d.Db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON DATABASE %s TO %s", i.Database, i.Username)); db.Error != nil {
-		return InstanceNotCreated, db.Error
-	}
+		if db := d.Db.Exec(fmt.Sprintf("CREATE DATABASE %s;", i.Database)); db.Error != nil {
+			return InstanceNotCreated, db.Error
+		}
+		if db := d.Db.Exec(fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s';", i.Username, password)); db.Error != nil {
+			return InstanceNotCreated, db.Error
+		}
+		if db := d.Db.Exec(fmt.Sprintf("GRANT ALL PRIVILEGES ON DATABASE %s TO %s", i.Database, i.Username)); db.Error != nil {
+			return InstanceNotCreated, db.Error
+		}
 	*/
 	return InstanceReady, nil
 }

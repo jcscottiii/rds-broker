@@ -11,7 +11,7 @@ import (
 )
 
 type RDS struct {
-	DbType     string
+	DbType   string
 	Url      string
 	Username string
 	Password string
@@ -23,18 +23,18 @@ type RDS struct {
 type DBInstanceState uint8
 
 const (
-	InstanceNotCreated DBInstanceState = iota	// 0
-	InstanceInProgress				// 1
-	InstanceReady					// 2
+	InstanceNotCreated DBInstanceState = iota // 0
+	InstanceInProgress                        // 1
+	InstanceReady                             // 2
 )
 
 type RdsDbConnection struct {
-	Rds	*RDS
-	Conn	*gorm.DB
+	Rds  *RDS
+	Conn *gorm.DB
 }
 
 type RdsSharedDBPool struct {
-	Pool	map[string]RdsDbConnection
+	Pool map[string]RdsDbConnection
 }
 
 func (p *RdsSharedDBPool) InitializePoolFromPlans(plans []Plan, env string) error {
