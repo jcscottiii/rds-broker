@@ -56,6 +56,8 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 		return
 	}
 
+	instance.Adapter = plan.Adapter
+
 	instance.Uuid = p["id"]
 
 	instance.Database = "db" + randStr(15)
@@ -72,6 +74,12 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 	status, err := s.DBAdapterFactoryInstance.CreateDB(plan, &instance, db, password)
 	if err != nil {
 		desc := "There was an error creating the instance. Error: " + err.Error()
+		r.JSON(http.StatusInternalServerError, Response{desc})
+		return
+	}
+	// Double check in case the developer forgets to send an error back.
+	if status == InstanceNotCreated {
+		desc := "There was an error creating the instance."
 		r.JSON(http.StatusInternalServerError, Response{desc})
 		return
 	}
@@ -122,35 +130,41 @@ func BindInstance(p martini.Params, req *http.Request, r render.Render, db *gorm
 		return
 	}
 
-	password, err := instance.GetPassword(s.EncryptionKey)
-	if err != nil {
-		r.JSON(http.StatusInternalServerError, "")
-	}
+	if instance.Adapter == "shared" {
+		password, err := instance.GetPassword(s.EncryptionKey)
+		if err != nil {
+			r.JSON(http.StatusInternalServerError, "")
+		}
 
-	rdsDbConnection, err := sharedPool.FindConnectionByPlanId(br.PlanId)
-	if err != nil {
-		r.JSON(http.StatusInternalServerError, "Unable to find the registered database")
-		return
-	}
-	uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
-		instance.Username,
-		password,
-		rdsDbConnection.Rds.Url,
-		rdsDbConnection.Rds.Port,
-		instance.Database)
+		rdsDbConnection, err := sharedPool.FindConnectionByPlanId(br.PlanId)
+		if err != nil {
+			r.JSON(http.StatusInternalServerError, "Unable to find the registered database")
+			return
+		}
+		uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+			instance.Username,
+			password,
+			rdsDbConnection.Rds.Url,
+			rdsDbConnection.Rds.Port,
+			instance.Database)
 
-	credentials := map[string]string{
-		"uri":      uri,
-		"username": instance.Username,
-		"password": password,
-		"host":     rdsDbConnection.Rds.Url,
-		"db_name":  instance.Database,
-	}
+		credentials := map[string]string{
+			"uri":      uri,
+			"username": instance.Username,
+			"password": password,
+			"host":     rdsDbConnection.Rds.Url,
+			"db_name":  instance.Database,
+		}
 
-	response := map[string]interface{}{
-		"credentials": credentials,
+		response := map[string]interface{}{
+			"credentials": credentials,
+		}
+		r.JSON(http.StatusCreated, response)
+	} else if instance.Adapter == "dedicated" {
+		r.JSON(http.StatusNotImplemented, Response{"Dedicated instance support not implemented yet."})
+	} else {
+		r.JSON(http.StatusInternalServerError, Response{"Unsupported adapter type: " + instance.Adapter + ". Unable to bind."})
 	}
-	r.JSON(http.StatusCreated, response)
 }
 
 // DeleteInstance

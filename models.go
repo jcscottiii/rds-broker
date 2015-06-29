@@ -24,6 +24,9 @@ type Instance struct {
 	Tags          map[string]string `sql:"-"`
 	DBSubnetGroup string            `sql:"-"`
 
+	Adapter      string `sql:"size(255)"`
+	DBEngine     string `sql:"size(255)"`
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt time.Time

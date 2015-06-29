@@ -38,7 +38,9 @@ func LoadRDSFromPlan(plan *Plan) *RDS {
 	rds.Username = os.Getenv(planNameUpper + "_DB_USER")
 	rds.Password = os.Getenv(planNameUpper + "_DB_PASS")
 	rds.DbName = os.Getenv(planNameUpper + "_DB_NAME")
-	rds.Sslmode = "verify-ca"
+	if rds.Sslmode = os.Getenv(planNameUpper + "_DB_SSLMODE"); rds.Sslmode == "" {
+		rds.Sslmode = "verify-ca"
+	}
 
 	if rds.Port = os.Getenv(planNameUpper + "_DB_PORT"); rds.Port == "" {
 		rds.Port = "5432"
