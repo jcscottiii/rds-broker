@@ -24,13 +24,14 @@ import (
 //    * require - Always SSL (skip verification)
 //    * verify-full - Always SSL (require verification)
 type DBConfig struct {
-	DbType   string
-	Url      string
-	Username string
-	Password string
-	DbName   string
-	Sslmode  string
-	Port     string
+	ID       uint `gorm:"primary_key"`
+	DbType   string `json:"dbType"`
+	Url      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	DbName   string `json:"dbName"`
+	Sslmode  string `json:"sslmode"`
+	Port     string `json:"port"`
 }
 
 // DBinit is a generic helper function that will try to connect to a database with the config in the input.
@@ -70,7 +71,7 @@ func DBInit(dbConfig *DBConfig) (*gorm.DB, error) {
 	DB.DB().SetMaxOpenConns(10)
 	log.Println("Migrating")
 	// Automigrate!
-	DB.AutoMigrate(Instance{})
+	DB.AutoMigrate(Instance{}, DBConfig{})
 	log.Println("Migrated")
 	return &DB, nil
 }

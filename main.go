@@ -112,5 +112,14 @@ func App(settings *Settings, env string, DB *gorm.DB) *martini.ClassicMartini {
 	// Delete service instance
 	m.Delete("/v2/service_instances/:id", DeleteInstance)
 
+	/*
+	 *
+	 *	RDS Broker specific APIs
+	 *
+	 */
+	 m.Get("/api/databases", GetDatabases)
+	 m.Post("/api/databases", RegisterDatabase)
+	 m.Delete("/api/databases/:id", RemoveDatabase)
+
 	return m
 }

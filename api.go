@@ -151,3 +151,92 @@ func DeleteInstance(p martini.Params, r render.Render, db *gorm.DB) {
 
 	r.JSON(http.StatusOK, Response{"The instance was deleted"})
 }
+
+/*
+ *
+ *	RDS Broker specific APIs
+ *
+ *
+ */
+
+// GetDatabases retrieves all database instances.
+// URL: /api/databases/
+// Request:
+// GET
+// {
+// }
+func GetDatabases(p martini.Params, r render.Render, db *gorm.DB) {
+	dbConfigs := make([]DBConfig, 0)
+	db.Find(&dbConfigs)
+	r.JSON(http.StatusOK, dbConfigs)
+}
+
+// RegisterDatabase
+// URL: /api/databases/
+// Request:
+// POST
+// {
+//   "dbType": "your-db-type",
+//   "url": "http://hostname.com",
+//   "username": "your-username",
+//   "password": "your-password",
+//   "dbName": "your-database-name",
+//   "sslmode": "disabled",
+//   "port": "5432"
+// }
+func RegisterDatabase(p martini.Params, req *http.Request, r render.Render, db *gorm.DB) {
+	// Read the body of the request.
+	body, _ := ioutil.ReadAll(req.Body)
+
+	// Try to unmarshal the json body into a DBConfig struct.
+	var dbConfig DBConfig
+	if err := json.Unmarshal(body, &dbConfig); err != nil {
+		r.JSON(http.StatusBadRequest, Response{"Unable to parse request body"})
+		return
+	}
+
+	// Check that there is not already a db config registered with the same values.
+	var existingDbConfig DBConfig
+	db.Where(&dbConfig).First(&existingDbConfig)
+	if existingDbConfig.ID > 0 {
+		r.JSON(http.StatusConflict, Response{"DB Config already exists"})
+		return
+	}
+
+	// Insert a new DB Config into the database.
+	db.NewRecord(&dbConfig)
+	if count := db.Save(&dbConfig).RowsAffected; count == 1 {
+		r.JSON(http.StatusCreated, Response{"Entity created. Id " + fmt.Sprint(dbConfig.ID)})
+	} else {
+		r.JSON(http.StatusInternalServerError, Response{"Entity not created"})
+	}
+}
+
+// RemoveDatabase
+// URL: /api/databases/:id
+// Request:
+// DELETE
+// {
+// }
+func RemoveDatabase(p martini.Params, r render.Render, db *gorm.DB) {
+	dbConfig := DBConfig{}
+
+	// Check that there is a db config with the specified ID.
+	if err := db.Where("i_d = ?", p["id"]).First(&dbConfig).Error; err != nil {
+		r.JSON(http.StatusNotFound, Response{"Unable to find entry at id: " + p["id"] + " Error: " + err.Error()})
+		return
+	}
+
+	if dbConfig.ID == 0 {
+		r.JSON(http.StatusNotFound, Response{"Unable to find entry at id: " + p["id"]})
+		return
+	}
+
+	// Delete it.
+	if db.Delete(&dbConfig).Error != nil {
+		r.JSON(http.StatusInternalServerError, Response{"Can not delete entry for database"})
+		return
+	}
+	r.JSON(http.StatusGone, Response{""})
+	return
+}
