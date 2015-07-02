@@ -25,13 +25,14 @@ import (
 //    * verify-full - Always SSL (require verification)
 type DBConfig struct {
 	ID       uint   `gorm:"primary_key"`
-	DbType   string `json:"dbType"`
+	DbType   string `json:"db_type"`
 	Url      string `json:"url"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-	DbName   string `json:"dbName"`
+	DbName   string `json:"db_name"`
 	Sslmode  string `json:"sslmode"`
 	Port     string `json:"port"`
+	PlanId   string `json:"plan_id"`
 }
 
 // DBinit is a generic helper function that will try to connect to a database with the config in the input.

@@ -176,13 +176,14 @@ func GetDatabases(p martini.Params, r render.Render, db *gorm.DB) {
 // Request:
 // POST
 // {
-//   "dbType": "your-db-type",
+//   "db_type": "your-db-type",
 //   "url": "http://hostname.com",
 //   "username": "your-username",
 //   "password": "your-password",
-//   "dbName": "your-database-name",
+//   "db_name": "your-database-name",
 //   "sslmode": "disabled",
-//   "port": "5432"
+//   "port": "5432",
+//   "plan_id": "your-plan-id"
 // }
 func RegisterDatabase(p martini.Params, req *http.Request, r render.Render, db *gorm.DB) {
 	// Read the body of the request.
