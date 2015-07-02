@@ -24,7 +24,7 @@ import (
 //    * require - Always SSL (skip verification)
 //    * verify-full - Always SSL (require verification)
 type DBConfig struct {
-	ID       uint `gorm:"primary_key"`
+	ID       uint   `gorm:"primary_key"`
 	DbType   string `json:"dbType"`
 	Url      string `json:"url"`
 	Username string `json:"username"`
@@ -68,10 +68,19 @@ func DBInit(dbConfig *DBConfig) (*gorm.DB, error) {
 		log.Println("Unable to verify connection to database")
 		return nil, err
 	}
-	DB.DB().SetMaxOpenConns(10)
-	log.Println("Migrating")
-	// Automigrate!
-	DB.AutoMigrate(Instance{}, DBConfig{})
-	log.Println("Migrated")
 	return &DB, nil
+}
+
+// InternalDBInit initializes the internal database connection that the service broker will use.
+// In addition to calling DBInit(), it also makes sure that the tables are setup for Instance and DBConfig structs.
+func InternalDBInit(dbConfig *DBConfig) (*gorm.DB, error) {
+	db, err := DBInit(dbConfig)
+	if err == nil {
+		db.DB().SetMaxOpenConns(10)
+		log.Println("Migrating")
+		// Automigrate!
+		db.AutoMigrate(Instance{}, DBConfig{})
+		log.Println("Migrated")
+	}
+	return db, err
 }

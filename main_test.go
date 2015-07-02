@@ -34,7 +34,7 @@ func setup() *martini.ClassicMartini {
 	dbConfig.DbName = ":memory:"
 	s.EncryptionKey = "12345678901234567890123456789012"
 	s.DbAdapterFactory = MockDBAdapterFactory{}
-	brokerDB, _ = DBInit(&dbConfig)
+	brokerDB, _ = InternalDBInit(&dbConfig)
 
 	m := App(&s, "test", brokerDB)
 
