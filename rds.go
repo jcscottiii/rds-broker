@@ -17,10 +17,12 @@ const (
 	InstanceNotCreated DBInstanceState = iota // 0
 	InstanceInProgress                        // 1
 	InstanceReady                             // 2
+	InstanceGone                              // 3
+	InstanceNotGone                           // 4
 )
 
 type IDBAdapterFactory interface {
-	CreateDB(plan *Plan, i *Instance, db *gorm.DB, password string) (DBInstanceState, error)
+	CreateDBAdapter(plan *Plan, db *gorm.DB) (*DBAdapter, error)
 }
 
 type DBAdapterFactory struct {
@@ -34,10 +36,8 @@ type DBAdapterFactory struct {
 // 0 = not created
 // 1 = in progress
 // 2 = ready
-func (f DBAdapterFactory) CreateDB(plan *Plan,
-	i *Instance,
-	db *gorm.DB,
-	password string) (DBInstanceState, error) {
+func (f DBAdapterFactory) CreateDBAdapter(plan *Plan,
+	db *gorm.DB) (*DBAdapter, error) {
 
 	var adapter DBAdapter
 	switch plan.Adapter {
@@ -50,15 +50,15 @@ func (f DBAdapterFactory) CreateDB(plan *Plan,
 			InstanceType: plan.InstanceType,
 		}
 	default:
-		return InstanceNotCreated, errors.New("Adapter not found")
+		return nil, errors.New("Adapter not found")
 	}
 
-	status, err := adapter.CreateDB(i, password)
-	return status, err
+	return &adapter, nil
 }
 
 type DBAdapter interface {
 	CreateDB(i *Instance, password string) (DBInstanceState, error)
+	DeleteDB(i *Instance) (DBInstanceState, error)
 }
 
 type SharedDB struct {
@@ -78,6 +78,16 @@ func (d *SharedDB) CreateDB(i *Instance, password string) (DBInstanceState, erro
 		return InstanceNotCreated, db.Error
 	}
 	return InstanceReady, nil
+}
+
+func (d * SharedDB) DeleteDB(i *Instance) (DBInstanceState, error) {
+	if db := d.Db.Exec(fmt.Sprintf("DROP DATABASE %s;", i.Database)); db.Error != nil {
+		return InstanceNotGone, db.Error
+	}
+	if db := d.Db.Exec(fmt.Sprintf("DROP USER %s;", i.Username)); db.Error != nil {
+		return InstanceNotGone, db.Error
+	}
+	return InstanceGone, nil
 }
 
 type DedicatedDB struct {
@@ -165,4 +175,8 @@ func (d *DedicatedDB) CreateDB(i *Instance, password string) (DBInstanceState, e
 	}
 
 	return InstanceReady, nil
+}
+
+func (d *DedicatedDB) DeleteDB(i *Instance) (DBInstanceState, error) {
+	return InstanceGone, errors.New("Not implemented yet")
 }
