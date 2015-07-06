@@ -67,16 +67,20 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 		return
 	}
 
-	// Create the database instance
-	status, err := s.DbAdapterFactory.CreateDB(plan, &instance, db, password)
+	// Create the database adapter.
+	adapter, err := s.DbAdapterFactory.CreateDBAdapter(plan, db)
 	if err != nil {
 		desc := "There was an error creating the instance. Error: " + err.Error()
 		r.JSON(http.StatusInternalServerError, Response{desc})
 		return
 	}
-	// Double check in case the developer forgets to send an error back.
-	if status == InstanceNotCreated {
+	var status DBInstanceState
+	// Create the database instance.
+	if status, err = (*adapter).CreateDB(&instance, password); status == InstanceNotCreated {
 		desc := "There was an error creating the instance."
+		if err != nil {
+			desc = desc + " Error: " + err.Error()
+		}
 		r.JSON(http.StatusInternalServerError, Response{desc})
 		return
 	}
@@ -149,7 +153,7 @@ func BindInstance(p martini.Params, r render.Render, db *gorm.DB, s *Settings) {
 //   "service_id": "service-id-here"
 //   "plan_id":    "plan-id-here"
 // }
-func DeleteInstance(p martini.Params, r render.Render, db *gorm.DB) {
+func DeleteInstance(p martini.Params, r render.Render, db *gorm.DB, s *Settings) {
 	instance := Instance{}
 
 	db.Where("uuid = ?", p["id"]).First(&instance)
@@ -159,18 +163,32 @@ func DeleteInstance(p martini.Params, r render.Render, db *gorm.DB) {
 		return
 	}
 
-	if instance.Adapter == "shared" {
-		db.Exec(fmt.Sprintf("DROP DATABASE %s;", instance.Database))
-		db.Exec(fmt.Sprintf("DROP USER %s;", instance.Username))
+	var plan *Plan
+	plan = FindPlan(instance.PlanId)
 
-		db.Delete(&instance)
-
-		r.JSON(http.StatusOK, Response{"The instance was deleted"})
-	} else if instance.Adapter == "dedicated" {
-		r.JSON(http.StatusNotImplemented, Response{"Dedicated instance support not implemented yet."})
-	} else {
-		r.JSON(http.StatusInternalServerError, Response{"Unsupported adapter type: " + instance.Adapter + ". Unable to delete."})
+	if plan == nil {
+		r.JSON(http.StatusBadRequest, Response{"The plan requested does not exist"})
+		return
 	}
+	// Create the database adapter.
+	adapter, err := s.DbAdapterFactory.CreateDBAdapter(plan, db)
+	if err != nil {
+		desc := "There was an error deleting the instance. Error: " + err.Error()
+		r.JSON(http.StatusInternalServerError, Response{desc})
+		return
+	}
+	var status DBInstanceState
+	// Delete the database instance.
+	if status, err = (*adapter).DeleteDB(&instance); status == InstanceNotGone {
+		desc := "There was an error deleting the instance."
+		if err != nil {
+			desc = desc + " Error: " + err.Error()
+		}
+		r.JSON(http.StatusInternalServerError, Response{desc})
+		return
+	}
+	db.Delete(&instance)
+	r.JSON(http.StatusOK, Response{"The instance was deleted"})
 }
 
 /*
