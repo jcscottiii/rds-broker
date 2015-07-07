@@ -7,7 +7,6 @@ import (
 
 	"crypto/aes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -67,6 +66,8 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 		return
 	}
 
+	instance.DbType = plan.DbType
+
 	// Create the database adapter.
 	adapter, err := s.DbAdapterFactory.CreateDBAdapter(plan, db)
 	if err != nil {
@@ -92,6 +93,7 @@ func CreateInstance(p martini.Params, req *http.Request, r render.Render, db *go
 		// Instance ready
 	}
 
+	instance.State = status
 	db.Save(&instance)
 
 	r.JSON(http.StatusCreated, Response{"The instance was created"})
@@ -113,37 +115,47 @@ func BindInstance(p martini.Params, r render.Render, db *gorm.DB, s *Settings) {
 		r.JSON(404, Response{"Instance not found"})
 		return
 	}
-
-	if instance.Adapter == "shared" {
-		password, err := instance.GetPassword(s.EncryptionKey)
-		if err != nil {
-			r.JSON(http.StatusInternalServerError, "")
-		}
-
-		uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
-			instance.Username,
-			password,
-			s.DbConfig.Url,
-			s.DbConfig.Port,
-			instance.Database)
-
-		credentials := map[string]string{
-			"uri":      uri,
-			"username": instance.Username,
-			"password": password,
-			"host":     s.DbConfig.Url,
-			"db_name":  instance.Database,
-		}
-
-		response := map[string]interface{}{
-			"credentials": credentials,
-		}
-		r.JSON(http.StatusCreated, response)
-	} else if instance.Adapter == "dedicated" {
-		r.JSON(http.StatusNotImplemented, Response{"Dedicated instance support not implemented yet."})
-	} else {
-		r.JSON(http.StatusInternalServerError, Response{"Unsupported adapter type: " + instance.Adapter + ". Unable to bind."})
+	password, err := instance.GetPassword(s.EncryptionKey)
+	if err != nil {
+		r.JSON(http.StatusInternalServerError, "Unable to get instance password.")
 	}
+
+	plan := FindPlan(instance.PlanId)
+
+	if plan == nil {
+		r.JSON(http.StatusBadRequest, Response{"The plan requested does not exist"})
+		return
+	}
+
+	// Create the database adapter.
+	adapter, err := s.DbAdapterFactory.CreateDBAdapter(plan, db)
+	if err != nil {
+		desc := "There was an error creating the instance. Error: " + err.Error()
+		r.JSON(http.StatusInternalServerError, Response{desc})
+		return
+	}
+
+	var credentials map[string]string
+	// Bind the database instance to the application.
+	originalInstanceState := instance.State
+	if credentials, err = (*adapter).BindDBToApp(&instance, password); err != nil {
+		desc := "There was an error binding the database instance to the application."
+		if err != nil {
+			desc = desc + " Error: " + err.Error()
+		}
+		r.JSON(http.StatusInternalServerError, Response{desc})
+		return
+	}
+
+	// If the state of the instance has changed, update it.
+	if instance.State != originalInstanceState {
+		db.Save(&instance)
+	}
+
+	response := map[string]interface{}{
+		"credentials": credentials,
+	}
+	r.JSON(http.StatusCreated, response)
 }
 
 // DeleteInstance
