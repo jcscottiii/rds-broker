@@ -31,7 +31,7 @@ type DBConfig struct {
 	Password string `json:"password"`
 	DbName   string `json:"db_name"`
 	Sslmode  string `json:"sslmode"`
-	Port     string `json:"port"`
+	Port     int64  `json:"port"` // Is int64 to match the type that rds.Endpoint.Port is in the AWS RDS SDK.
 	PlanId   string `json:"plan_id"`
 }
 
@@ -44,7 +44,7 @@ func DBInit(dbConfig *DBConfig) (*gorm.DB, error) {
 	var err error
 	switch dbConfig.DbType {
 	case "postgres":
-		conn := "dbname=%s user=%s password=%s host=%s sslmode=%s port=%s"
+		conn := "dbname=%s user=%s password=%s host=%s sslmode=%s port=%d"
 		conn = fmt.Sprintf(conn,
 			dbConfig.DbName,
 			dbConfig.Username,
